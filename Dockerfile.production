@@ -1,0 +1,18 @@
+FROM node:26
+
+RUN npm install -g pnpm@12.6.0
+
+WORKDIR /app
+RUN chown node:node /app
+USER node
+
+COPY --chown=node:node app/package.json app/pnpm-lock.yaml app/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY --chown=node:node app/. .
+
+EXPOSE 8080
+ENV NODE_ENV=production
+RUN make build
+
+CMD ["make", "start"]

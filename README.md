@@ -45,7 +45,9 @@ make down
 make test
 ```
 
-Основной файл `docker-compose.yml` собирает образ из корневого `Dockerfile`, монтирует `app/` в `/app` и запускает `make test` внутри контейнера. Для разработки Compose автоматически подключает `docker-compose.override.yml`: он заменяет команду на `make dev` и публикует порт 8080.
+Основной файл `docker-compose.yml` собирает готовое приложение из `Dockerfile.production` и запускает в нём `make test` без монтирования локальных файлов. Команда `make test` пересобирает образ перед запуском, чтобы тесты проверяли текущий код.
+
+Для разработки Compose автоматически подключает `docker-compose.override.yml`: он выбирает `Dockerfile`, монтирует `app/` в `/app`, заменяет команду на `make dev` и публикует порт 8080. Для этого режима используется отдельный локальный тег `devops-engineer-from-scratch-project-74:development`.
 
 `make test` явно выбирает только основной файл. Команда завершает Compose после окончания тестов и возвращает код завершения сервиса `app`:
 
@@ -53,18 +55,49 @@ make test
 docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from app
 ```
 
+### Production и Docker Hub
+
+Production-образ: `dabsaidov/devops-engineer-from-scratch-project-74:latest` ([Docker Hub](https://hub.docker.com/r/dabsaidov/devops-engineer-from-scratch-project-74)). Он содержит код, зависимости и собранные стили; по умолчанию запускает `make start` от пользователя `node` и слушает порт 8080.
+
+Приложение использует pnpm, поэтому перед копированием исходников в образ отдельно копируются `package.json`, `pnpm-lock.yaml` и `pnpm-workspace.yaml`, а зависимости устанавливаются через `pnpm install --frozen-lockfile`. Слой переиспользуется, пока эти файлы не меняются. Зависимости для разработки сохраняются в образе: они нужны для `make test` и проверки `make dev` по заданию.
+
+Создайте репозиторий `devops-engineer-from-scratch-project-74` в аккаунте `dabsaidov` на Docker Hub и выполните вход:
+
+```bash
+docker login
+make build-production
+make push
+```
+
+Проверка опубликованного образа без локального кода (предварительно остановите локальное приложение командой `make down`):
+
+```bash
+docker pull dabsaidov/devops-engineer-from-scratch-project-74:latest
+docker run --rm -p 8080:8080 -e NODE_ENV=development \
+  dabsaidov/devops-engineer-from-scratch-project-74:latest make dev
+```
+
+Чтобы запустить production-команду образа, не передавайте `make dev`:
+
+```bash
+docker run --rm -p 8080:8080 \
+  dabsaidov/devops-engineer-from-scratch-project-74:latest
+```
+
 ### Команды
 
 | Команда | Действие |
 | --- | --- |
 | `make setup` | Установить зависимости и собрать приложение |
-| `make build` | Собрать образ с Node.js 26 и pnpm 12.6.0 |
+| `make build` | Собрать образ для разработки |
+| `make build-production` | Собрать готовое приложение для Docker Hub |
+| `make push` | Загрузить production-образ на Docker Hub |
 | `make dev` / `make up` | Запустить приложение для разработки |
-| `make test` | Запустить тесты без override |
+| `make test` | Собрать production-образ и запустить тесты без override |
 | `make down` | Остановить и удалить контейнеры |
 | `make logs` | Смотреть логи приложения |
 
-Makefile передаёт UID/GID текущего пользователя, чтобы файлы не создавались от root. При использовании Compose напрямую задайте их в терминале:
+Для разработки Makefile передаёт UID/GID текущего пользователя, чтобы файлы не создавались от root. При использовании Compose напрямую задайте их в терминале:
 
 ```bash
 export LOCAL_UID="$(id -u)"
@@ -76,7 +109,7 @@ docker compose up
 
 В примерах используется `docker compose`. Если установлен отдельный `docker-compose`, команды Makefile можно вызывать с `DOCKER_COMPOSE=docker-compose`, например `make test DOCKER_COMPOSE=docker-compose`.
 
-Кеши npm и pnpm находятся в `/tmp` контейнера. Зависимости копируются из кеша в `app/node_modules/`, чтобы установка работала и с примонтированными каталогами Docker Desktop. Локальная база хранится в `app/database/`. Зависимости, база и результат сборки исключены из Git.
+В режиме разработки кеши npm и pnpm находятся в `/tmp` контейнера. Зависимости копируются из кеша в `app/node_modules/`, чтобы установка работала и с примонтированными каталогами Docker Desktop. Локальная база хранится в `app/database/`. Зависимости, база и результат сборки исключены из Git.
 
 ---
 

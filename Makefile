@@ -3,13 +3,19 @@ LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
 export LOCAL_UID LOCAL_GID
 
-.PHONY: setup build up dev down test logs
+.PHONY: setup build build-production push up dev down test logs
 
 setup:
 	$(DOCKER_COMPOSE) run --rm app make setup
 
 build:
 	$(DOCKER_COMPOSE) build
+
+build-production:
+	$(DOCKER_COMPOSE) -f docker-compose.yml build app
+
+push:
+	$(DOCKER_COMPOSE) -f docker-compose.yml push app
 
 up:
 	$(DOCKER_COMPOSE) up
@@ -20,7 +26,7 @@ down:
 	$(DOCKER_COMPOSE) down
 
 test:
-	$(DOCKER_COMPOSE) -f docker-compose.yml up --abort-on-container-exit --exit-code-from app
+	$(DOCKER_COMPOSE) -f docker-compose.yml up --build --abort-on-container-exit --exit-code-from app
 
 logs:
 	$(DOCKER_COMPOSE) logs -f app

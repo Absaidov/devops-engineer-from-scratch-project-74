@@ -1,12 +1,7 @@
 services:
   app:
-    build: .
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    environment:
-      HOME: /tmp
-      NPM_CONFIG_CACHE: /tmp/npm-cache
-      pnpm_config_store_dir: /tmp/pnpm-store
-      pnpm_config_package_import_method: copy
-    volumes:
-      - ./app:/app
+    image: dabsaidov/devops-engineer-from-scratch-project-74:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.production
     command: make test
