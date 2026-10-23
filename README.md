@@ -1,6 +1,7 @@
 # Упаковка в Docker Compose
 
 [![hexlet-check](https://github.com/Absaidov/devops-engineer-from-scratch-project-74/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/Absaidov/devops-engineer-from-scratch-project-74/actions)
+[![Docker CI](https://github.com/Absaidov/devops-engineer-from-scratch-project-74/actions/workflows/push.yml/badge.svg?branch=main)](https://github.com/Absaidov/devops-engineer-from-scratch-project-74/actions/workflows/push.yml)
 
 Учебный проект по автоматизации развертывания локального окружения. Приложение [JS Fastify Blog](https://github.com/hexlet-components/js-fastify-blog) находится в каталоге `app/`.
 
@@ -55,6 +56,20 @@ make test
 docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from app
 ```
 
+### GitHub Actions
+
+Workflow `.github/workflows/push.yml` запускается на каждый `push` и вручную через `workflow_dispatch`. Сначала `make ci` собирает production-образ и запускает тесты через Docker Compose без override. После успешных тестов Docker Actions собирают `Dockerfile.production` и публикуют `dabsaidov/devops-engineer-from-scratch-project-74:latest`. При ошибке тестов публикация не выполняется.
+
+Для автоматической публикации создайте в аккаунте `dabsaidov` [Docker Hub access token](https://docs.docker.com/security/access-tokens/personal-access-tokens/) с правами Read и Write. Сохраните его в [настройках секретов репозитория](https://github.com/Absaidov/devops-engineer-from-scratch-project-74/settings/secrets/actions) под именем `DOCKERHUB_TOKEN` (Settings → Secrets and variables → Actions → New repository secret). Логин `dabsaidov` уже указан в workflow. Локальный `docker login` не передаёт авторизацию в GitHub Actions.
+
+После добавления секрета и отправки коммита проверьте [запуск Docker CI](https://github.com/Absaidov/devops-engineer-from-scratch-project-74/actions/workflows/push.yml). После успешной публикации badge станет зелёным. Повторить запуск можно через Re-run jobs или Run workflow.
+
+Локальная проверка той же командой, которую использует CI:
+
+```bash
+make ci
+```
+
 ### Production и Docker Hub
 
 Production-образ: `dabsaidov/devops-engineer-from-scratch-project-74:latest` ([Docker Hub](https://hub.docker.com/r/dabsaidov/devops-engineer-from-scratch-project-74)). Он содержит код, зависимости и собранные стили; по умолчанию запускает `make start` от пользователя `node` и слушает порт 8080.
@@ -94,6 +109,7 @@ docker run --rm -p 8080:8080 \
 | `make push` | Загрузить production-образ на Docker Hub |
 | `make dev` / `make up` | Запустить приложение для разработки |
 | `make test` | Собрать production-образ и запустить тесты без override |
+| `make ci` | Выполнить тот же прогон тестов, что и GitHub Actions |
 | `make down` | Остановить и удалить контейнеры |
 | `make logs` | Смотреть логи приложения |
 
