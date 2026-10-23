@@ -1,7 +1,6 @@
 services:
   app:
-    image: node:26
-    working_dir: /app
+    build: .
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     environment:
       HOME: /tmp
@@ -10,6 +9,4 @@ services:
       pnpm_config_package_import_method: copy
     volumes:
       - ./app:/app
-    ports:
-      - "8080:8080"
-    command: ["npm", "exec", "--yes", "--package=pnpm@12.6.0", "--", "make", "dev"]
+    command: make test

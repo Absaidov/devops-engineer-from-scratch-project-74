@@ -15,35 +15,66 @@
 
 ## Установка
 
-Установите и запустите Docker. Node.js и pnpm на хост-машине не требуются.
+Установите и запустите Docker с Docker Compose v2 (минимальная версия Compose по заданию — 1.27.0). Для коротких команд нужен Make. Node.js и pnpm на хост-машине не требуются.
 
 ```bash
 git clone https://github.com/Absaidov/devops-engineer-from-scratch-project-74.git
 cd devops-engineer-from-scratch-project-74
 
-# Используем UID/GID текущего пользователя, чтобы файлы не создавались от root.
-export LOCAL_UID="$(id -u)"
-export LOCAL_GID="$(id -g)"
-
-# Установка зависимостей и сборка приложения.
-docker compose run --rm app npm exec --yes --package=pnpm@12.6.0 -- make setup
+# Сборка образа, установка зависимостей и сборка приложения.
+make setup
 ```
 
 ## Использование
 
-В том же терминале запустите приложение:
+Запустите приложение для разработки:
 
 ```bash
-docker compose up
+make dev
 ```
 
 Откройте [http://localhost:8080](http://localhost:8080). Для остановки нажмите `Ctrl+C`, затем удалите контейнеры:
 
 ```bash
-docker compose down
+make down
 ```
 
-При запуске из нового терминала снова задайте `LOCAL_UID` и `LOCAL_GID` командами выше. pnpm запускается через `npm exec`, поскольку в образе Node.js 26 он не предустановлен.
+### Тесты
+
+```bash
+make test
+```
+
+Основной файл `docker-compose.yml` собирает образ из корневого `Dockerfile`, монтирует `app/` в `/app` и запускает `make test` внутри контейнера. Для разработки Compose автоматически подключает `docker-compose.override.yml`: он заменяет команду на `make dev` и публикует порт 8080.
+
+`make test` явно выбирает только основной файл. Команда завершает Compose после окончания тестов и возвращает код завершения сервиса `app`:
+
+```bash
+docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from app
+```
+
+### Команды
+
+| Команда | Действие |
+| --- | --- |
+| `make setup` | Установить зависимости и собрать приложение |
+| `make build` | Собрать образ с Node.js 26 и pnpm 12.6.0 |
+| `make dev` / `make up` | Запустить приложение для разработки |
+| `make test` | Запустить тесты без override |
+| `make down` | Остановить и удалить контейнеры |
+| `make logs` | Смотреть логи приложения |
+
+Makefile передаёт UID/GID текущего пользователя, чтобы файлы не создавались от root. При использовании Compose напрямую задайте их в терминале:
+
+```bash
+export LOCAL_UID="$(id -u)"
+export LOCAL_GID="$(id -g)"
+
+docker compose run --rm app make setup
+docker compose up
+```
+
+В примерах используется `docker compose`. Если установлен отдельный `docker-compose`, команды Makefile можно вызывать с `DOCKER_COMPOSE=docker-compose`, например `make test DOCKER_COMPOSE=docker-compose`.
 
 Кеши npm и pnpm находятся в `/tmp` контейнера. Зависимости копируются из кеша в `app/node_modules/`, чтобы установка работала и с примонтированными каталогами Docker Desktop. Локальная база хранится в `app/database/`. Зависимости, база и результат сборки исключены из Git.
 

@@ -1,0 +1,6 @@
+.git
+node_modules
+**/node_modules
+app/dist
+app/database
+app/.env
