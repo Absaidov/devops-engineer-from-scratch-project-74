@@ -31,4 +31,4 @@ test:
 ci: test
 
 logs:
-	$(DOCKER_COMPOSE) logs -f app
+	$(DOCKER_COMPOSE) logs -f

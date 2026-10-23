@@ -13,6 +13,7 @@
 - Docker и Docker Compose
 - Node.js 26 и pnpm 12.6.0 (в контейнере)
 - Fastify, Vite и PGlite (встроенная база данных приложения)
+- Caddy 2 (reverse proxy, локальный HTTPS и сжатие zstd)
 
 ## Установка
 
@@ -34,10 +35,32 @@ make setup
 make dev
 ```
 
-Откройте [http://localhost:8080](http://localhost:8080). Для остановки нажмите `Ctrl+C`, затем удалите контейнеры:
+Откройте [https://localhost](https://localhost). Запросы на [http://localhost](http://localhost) автоматически перенаправляются на HTTPS. Caddy передаёт запросы сервису `app:8080`. Приложение также доступно напрямую на [http://localhost:8080](http://localhost:8080).
+
+Для остановки нажмите `Ctrl+C`, затем удалите контейнеры:
 
 ```bash
 make down
+```
+
+### Локальный HTTPS и Caddy
+
+Сервис `caddy` определён в `docker-compose.override.yml` и запускается вместе с приложением. Каталог `services/caddy/` подключён к `/etc/caddy` только для чтения; конфигурация находится в `services/caddy/Caddyfile`. Caddy публикует порты 80 и 443, пишет access-логи в JSON и сжимает ответы в zstd, если клиент поддерживает этот формат.
+
+`tls internal` выпускает сертификат для `localhost` через локальный центр сертификации Caddy. Браузер может показать предупреждение, пока этот центр не добавлен в доверенные на хост-машине. Данные центра и сертификаты сохраняются в Docker volume `caddy_data`, рабочая конфигурация — в `caddy_config`; `make down` сохраняет эти volumes.
+
+Проверка перенаправления и HTTPS без изменения системного хранилища сертификатов:
+
+```bash
+curl -I http://localhost
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt /tmp/project-74-caddy-root.crt
+curl --cacert /tmp/project-74-caddy-root.crt https://localhost
+```
+
+Логи обоих сервисов доступны через `make logs`. После изменения Caddyfile конфигурацию можно перечитать без перезапуска контейнера:
+
+```bash
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 
 ### Тесты
@@ -48,7 +71,7 @@ make test
 
 Основной файл `docker-compose.yml` собирает готовое приложение из `Dockerfile.production` и запускает в нём `make test` без монтирования локальных файлов. Команда `make test` пересобирает образ перед запуском, чтобы тесты проверяли текущий код.
 
-Для разработки Compose автоматически подключает `docker-compose.override.yml`: он выбирает `Dockerfile`, монтирует `app/` в `/app`, заменяет команду на `make dev` и публикует порт 8080. Для этого режима используется отдельный локальный тег `devops-engineer-from-scratch-project-74:development`.
+Для разработки Compose автоматически подключает `docker-compose.override.yml`: он выбирает `Dockerfile`, монтирует `app/` в `/app`, заменяет команду на `make dev`, публикует порт 8080 и добавляет Caddy на портах 80 и 443. Для этого режима используется отдельный локальный тег `devops-engineer-from-scratch-project-74:development`.
 
 `make test` явно выбирает только основной файл. Команда завершает Compose после окончания тестов и возвращает код завершения сервиса `app`:
 
@@ -111,7 +134,7 @@ docker run --rm -p 8080:8080 \
 | `make test` | Собрать production-образ и запустить тесты без override |
 | `make ci` | Выполнить тот же прогон тестов, что и GitHub Actions |
 | `make down` | Остановить и удалить контейнеры |
-| `make logs` | Смотреть логи приложения |
+| `make logs` | Смотреть логи приложения и Caddy |
 
 Для разработки Makefile передаёт UID/GID текущего пользователя, чтобы файлы не создавались от root. При использовании Compose напрямую задайте их в терминале:
 
