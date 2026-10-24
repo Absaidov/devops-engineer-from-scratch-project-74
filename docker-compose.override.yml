@@ -1,7 +1,7 @@
 services:
   app:
     image: devops-engineer-from-scratch-project-74:development
-    pull_policy: build
+    pull_policy: never
     build:
       dockerfile: Dockerfile
     user: "${LOCAL_UID:-0}:${LOCAL_GID:-0}"

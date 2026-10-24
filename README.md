@@ -104,7 +104,7 @@ make test
 
 Для разработки Compose автоматически подключает `docker-compose.override.yml`: он выбирает `Dockerfile`, монтирует `app/` в `/app`, заменяет команду на `make dev`, публикует порт 8080 и добавляет Caddy на портах 80 и 443. Для этого режима используется отдельный локальный тег `devops-engineer-from-scratch-project-74:development`.
 
-Для образа разработки задано `pull_policy: build`: Compose собирает его из `Dockerfile` и пропускает его при `docker compose pull`. Тег `development` используется локально и не требует публикации в Docker Hub.
+Для образа разработки задано `pull_policy: never`: Compose пропускает его при `docker compose pull` и использует уже собранный локальный образ при запуске. Если образа ещё нет, Compose собирает его из `Dockerfile`. После изменения Dockerfile выполните `make build`. Тег `development` используется локально и не требует публикации в Docker Hub.
 
 `make test` явно выбирает только основной файл. Команда завершает Compose после окончания тестов и возвращает код завершения сервиса `app`:
 
