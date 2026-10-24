@@ -184,9 +184,13 @@ docker compose run --rm app make setup
 docker compose up
 ```
 
+Если `LOCAL_UID` и `LOCAL_GID` не заданы, контейнер разработки использует root. Так он может работать с зависимостями и сборкой, которые автопроверка Хекслета предварительно создала от root. При запуске через `make setup` и `make dev` используются UID/GID текущего пользователя; production-образ по-прежнему запускается от `node`.
+
 В примерах используется `docker compose`. Если установлен отдельный `docker-compose`, команды Makefile можно вызывать с `DOCKER_COMPOSE=docker-compose`, например `make test DOCKER_COMPOSE=docker-compose`.
 
 В режиме разработки кеши npm и pnpm находятся в `/tmp` контейнера. Зависимости копируются из кеша в `app/node_modules/`, чтобы установка работала и с примонтированными каталогами Docker Desktop. База хранится в Docker volume `postgres_data`. Каталоги зависимостей, результат сборки и `.env` исключены из Git.
+
+Автоматическая переустановка зависимостей при `pnpm run` и `pnpm exec` в контейнере разработки отключена (`verifyDepsBeforeRun=false`). Подготовленные вне контейнера зависимости используются как есть; для их установки или обновления выполните `make setup`.
 
 ---
 

@@ -4,12 +4,13 @@ services:
     pull_policy: build
     build:
       dockerfile: Dockerfile
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    user: "${LOCAL_UID:-0}:${LOCAL_GID:-0}"
     environment:
       HOME: /tmp
       NPM_CONFIG_CACHE: /tmp/npm-cache
       pnpm_config_store_dir: /tmp/pnpm-store
       pnpm_config_package_import_method: copy
+      pnpm_config_verify_deps_before_run: "false"
     volumes:
       - ./app:/app
     ports:
