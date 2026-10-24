@@ -49,7 +49,7 @@ make down
 
 ### Локальный HTTPS и Caddy
 
-Сервис `caddy` определён в `docker-compose.override.yml` и запускается вместе с приложением. Каталог `services/caddy/` подключён к `/etc/caddy` только для чтения; конфигурация находится в `services/caddy/Caddyfile`. Caddy публикует порты 80 и 443, пишет access-логи в JSON и сжимает ответы в zstd, если клиент поддерживает этот формат.
+Сервис `caddy` определён в `docker-compose.override.yml` и запускается вместе с приложением. Файл `services/caddy/Caddyfile` подключён к `/etc/caddy/Caddyfile` только для чтения. Это позволяет дополнительному override автопроверки заменить файл конфигурации по тому же пути без конфликта вложенных монтирований. Caddy публикует порты 80 и 443, пишет access-логи в JSON и сжимает ответы в zstd, если клиент поддерживает этот формат.
 
 `tls internal` выпускает сертификат для `localhost` через локальный центр сертификации Caddy. Браузер может показать предупреждение, пока этот центр не добавлен в доверенные на хост-машине. Данные центра и сертификаты сохраняются в Docker volume `caddy_data`, рабочая конфигурация — в `caddy_config`; `make down` сохраняет эти volumes.
 
@@ -61,10 +61,10 @@ docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt /tmp/project-
 curl --cacert /tmp/project-74-caddy-root.crt https://localhost
 ```
 
-Логи всех сервисов доступны через `make logs`. После изменения Caddyfile конфигурацию можно перечитать без перезапуска контейнера:
+Логи всех сервисов доступны через `make logs`. После изменения Caddyfile пересоздайте только контейнер Caddy, чтобы он получил обновлённый файл независимо от способа сохранения в редакторе:
 
 ```bash
-docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose up -d --no-deps --force-recreate caddy
 ```
 
 ### PostgreSQL и переменные окружения
