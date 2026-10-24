@@ -1,32 +1,34 @@
+PNPM := $(if $(shell command -v pnpm 2>/dev/null),pnpm,npm exec --yes --package=pnpm@12.6.0 -- pnpm)
+
 setup: install build
 
 install:
-	pnpm install
+	$(PNPM) install
 
 build:
-	pnpm run build
+	$(PNPM) run build
 
 prepare-env:
 	cp -n .env.example .env
 
 start:
-	NODE_ENV=production pnpm run start
+	NODE_ENV=production $(PNPM) run start
 
 dev:
-	pnpm exec concurrently "make start-frontend" "make start-backend"
+	$(PNPM) exec concurrently "make start-frontend" "make start-backend"
 
 start-backend:
-	pnpm run start --watch --verbose-watch --ignore-watch='node_modules .git dist database'
+	$(PNPM) run start --watch --verbose-watch --ignore-watch='node_modules .git dist database'
 
 start-frontend:
-	pnpm exec vite build --watch
+	$(PNPM) exec vite build --watch
 
 lint:
-	pnpm --silent run lint
-	pnpm --silent run format:check
+	$(PNPM) --silent run lint
+	$(PNPM) --silent run format:check
 
 lint-fix:
-	pnpm --silent run lint:fix
+	$(PNPM) --silent run lint:fix
 
 test:
-	NODE_ENV=test pnpm --silent test
+	NODE_ENV=test $(PNPM) --silent test
