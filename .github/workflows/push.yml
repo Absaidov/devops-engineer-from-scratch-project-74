@@ -42,4 +42,4 @@ jobs:
 
       - name: Clean up containers
         if: always()
-        run: docker compose -f docker-compose.yml down
+        run: make test-clean

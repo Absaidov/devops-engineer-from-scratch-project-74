@@ -12,7 +12,7 @@
 
 - Docker и Docker Compose
 - Node.js 26 и pnpm 12.6.0 (в контейнере)
-- Fastify, Vite и PGlite (встроенная база данных приложения)
+- Fastify, Vite и PostgreSQL (сервис `db` в Docker Compose)
 - Caddy 2 (reverse proxy, локальный HTTPS и сжатие zstd)
 
 ## Установка
@@ -23,9 +23,11 @@
 git clone https://github.com/Absaidov/devops-engineer-from-scratch-project-74.git
 cd devops-engineer-from-scratch-project-74
 
-# Сборка образа, установка зависимостей и сборка приложения.
+# Создание .env, установка зависимостей и сборка приложения.
 make setup
 ```
+
+`make setup` создаёт корневой `.env` из `.env.example`, если файла ещё нет. Существующие настройки сохраняются. Отдельно подготовить окружение можно командой `make prepare-env`.
 
 ## Использование
 
@@ -57,10 +59,35 @@ docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt /tmp/project-
 curl --cacert /tmp/project-74-caddy-root.crt https://localhost
 ```
 
-Логи обоих сервисов доступны через `make logs`. После изменения Caddyfile конфигурацию можно перечитать без перезапуска контейнера:
+Логи всех сервисов доступны через `make logs`. После изменения Caddyfile конфигурацию можно перечитать без перезапуска контейнера:
 
 ```bash
 docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+### PostgreSQL и переменные окружения
+
+Основной Compose-файл содержит сервис `db` с официальным образом `postgres:latest`. Приложение подключается к нему по имени `db` внутри Docker-сети; порт PostgreSQL на хост не публикуется. Healthcheck проверяет готовность сервера через `pg_isready`, а `app` запускается после перехода БД в состояние `healthy`.
+
+Параметры подключения задаются в корневом `.env`:
+
+```dotenv
+DATABASE_HOST=db
+DATABASE_NAME=postgres
+DATABASE_USERNAME=postgres
+DATABASE_PASSWORD=password
+DATABASE_PORT=5432
+```
+
+Compose передаёт эти значения приложению как `DATABASE_*`, а контейнеру БД — как `POSTGRES_DB`, `POSTGRES_USER` и `POSTGRES_PASSWORD`. `.env` исключён из Git и Docker-контекста; в репозитории хранится `.env.example`.
+
+В текущей версии JS Fastify Blog нет `app/config/config.cjs`: PostgreSQL выбирается по переменным окружения в `app/server/plugins/db.js`, миграции Drizzle применяются при запуске приложения. PGlite остаётся вариантом для запуска приложения отдельно, без адреса внешней БД.
+
+Данные PostgreSQL сохраняются в volume `postgres_data`, подключённом к `/var/lib/postgresql` (путь официального образа PostgreSQL 18+). `make down` сохраняет данные. Состояние сервисов и подключение к БД можно проверить командами:
+
+```bash
+docker compose ps
+docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
 ### Тесты
@@ -69,19 +96,23 @@ docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter c
 make test
 ```
 
-Основной файл `docker-compose.yml` собирает готовое приложение из `Dockerfile.production` и запускает в нём `make test` без монтирования локальных файлов. Команда `make test` пересобирает образ перед запуском, чтобы тесты проверяли текущий код.
+Основной файл `docker-compose.yml` собирает готовое приложение из `Dockerfile.production` и запускает в нём `make test` без монтирования локальных файлов. Тесты используют настоящий PostgreSQL из сервиса `db`. Команда `make test` пересобирает образ перед запуском, чтобы тесты проверяли текущий код.
+
+`make test` и `make ci` используют отдельный Compose-проект `devops-engineer-from-scratch-project-74-test` с собственной БД. После прогона его контейнеры, сеть и volume удаляются, в том числе при ошибке тестов. Повторные прогоны начинают с чистой БД и не затрагивают данные разработки.
 
 Для разработки Compose автоматически подключает `docker-compose.override.yml`: он выбирает `Dockerfile`, монтирует `app/` в `/app`, заменяет команду на `make dev`, публикует порт 8080 и добавляет Caddy на портах 80 и 443. Для этого режима используется отдельный локальный тег `devops-engineer-from-scratch-project-74:development`.
 
 `make test` явно выбирает только основной файл. Команда завершает Compose после окончания тестов и возвращает код завершения сервиса `app`:
 
 ```bash
-docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from app
+docker compose -p devops-engineer-from-scratch-project-74-test -f docker-compose.yml \
+  up --build --abort-on-container-exit --exit-code-from app
+make test-clean
 ```
 
 ### GitHub Actions
 
-Workflow `.github/workflows/push.yml` запускается на каждый `push` и вручную через `workflow_dispatch`. Сначала `make ci` собирает production-образ и запускает тесты через Docker Compose без override. После успешных тестов Docker Actions собирают `Dockerfile.production` и публикуют `dabsaidov/devops-engineer-from-scratch-project-74:latest`. При ошибке тестов публикация не выполняется.
+Workflow `.github/workflows/push.yml` запускается на каждый `push` и вручную через `workflow_dispatch`. Сначала `make ci` собирает production-образ и запускает тесты с PostgreSQL через Docker Compose без override. После успешных тестов Docker Actions собирают `Dockerfile.production` и публикуют `dabsaidov/devops-engineer-from-scratch-project-74:latest`. При ошибке тестов публикация не выполняется.
 
 Для автоматической публикации создайте в аккаунте `dabsaidov` [Docker Hub access token](https://docs.docker.com/security/access-tokens/personal-access-tokens/) с правами Read и Write. Сохраните его в [настройках секретов репозитория](https://github.com/Absaidov/devops-engineer-from-scratch-project-74/settings/secrets/actions) под именем `DOCKERHUB_TOKEN` (Settings → Secrets and variables → Actions → New repository secret). Логин `dabsaidov` уже указан в workflow. Локальный `docker login` не передаёт авторизацию в GitHub Actions.
 
@@ -127,14 +158,16 @@ docker run --rm -p 8080:8080 \
 | Команда | Действие |
 | --- | --- |
 | `make setup` | Установить зависимости и собрать приложение |
+| `make prepare-env` | Создать `.env` из `.env.example`, если его ещё нет |
 | `make build` | Собрать образ для разработки |
 | `make build-production` | Собрать готовое приложение для Docker Hub |
 | `make push` | Загрузить production-образ на Docker Hub |
 | `make dev` / `make up` | Запустить приложение для разработки |
 | `make test` | Собрать production-образ и запустить тесты без override |
 | `make ci` | Выполнить тот же прогон тестов, что и GitHub Actions |
+| `make test-clean` | Удалить контейнеры и данные только тестового Compose-проекта |
 | `make down` | Остановить и удалить контейнеры |
-| `make logs` | Смотреть логи приложения и Caddy |
+| `make logs` | Смотреть логи приложения, PostgreSQL и Caddy |
 
 Для разработки Makefile передаёт UID/GID текущего пользователя, чтобы файлы не создавались от root. При использовании Compose напрямую задайте их в терминале:
 
@@ -142,13 +175,14 @@ docker run --rm -p 8080:8080 \
 export LOCAL_UID="$(id -u)"
 export LOCAL_GID="$(id -g)"
 
+make prepare-env
 docker compose run --rm app make setup
 docker compose up
 ```
 
 В примерах используется `docker compose`. Если установлен отдельный `docker-compose`, команды Makefile можно вызывать с `DOCKER_COMPOSE=docker-compose`, например `make test DOCKER_COMPOSE=docker-compose`.
 
-В режиме разработки кеши npm и pnpm находятся в `/tmp` контейнера. Зависимости копируются из кеша в `app/node_modules/`, чтобы установка работала и с примонтированными каталогами Docker Desktop. Локальная база хранится в `app/database/`. Зависимости, база и результат сборки исключены из Git.
+В режиме разработки кеши npm и pnpm находятся в `/tmp` контейнера. Зависимости копируются из кеша в `app/node_modules/`, чтобы установка работала и с примонтированными каталогами Docker Desktop. База хранится в Docker volume `postgres_data`. Каталоги зависимостей, результат сборки и `.env` исключены из Git.
 
 ---
 
